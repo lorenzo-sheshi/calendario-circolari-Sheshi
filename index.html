@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Calendario Circolari – Belluzzi da Vinci</title>
+<link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1a73e8">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Circolari">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+</head>
+<body>
+<header>
+  <h1>📅 Belluzzi da Vinci · Circolari</h1>
+  <button id="oggi">Oggi</button>
+  <button id="prev" aria-label="Mese precedente">‹</button>
+  <button id="next" aria-label="Mese successivo">›</button>
+  <h2 id="titolo"></h2>
+  <span class="sp"></span>
+  <button id="esporta" aria-label="Esporta nel calendario del telefono">⬇ .ics</button>
+  <button id="tema" aria-label="Cambia tema">🌓</button>
+  <button class="pri" id="nuovo">+ Nuovo</button>
+</header>
+
+<div class="wrap">
+  <aside>
+    <div class="box">
+      <h3>Docente</h3>
+      <input id="docente" placeholder="Nome e cognome (per firmare)">
+    </div>
+    <div class="box">
+      <h3>Filtri</h3>
+      <label for="q">Cerca</label><input id="q" placeholder="Titolo, numero, testo…">
+      <label for="ft">Tipo</label>
+      <select id="ft"><option value="">Tutti</option><option value="circolare">Circolari</option><option value="impegno">Impegni</option><option value="riunione">Riunioni</option><option value="scadenza">Scadenze</option></select>
+      <label for="fc">Classe</label><input id="fc" placeholder="es. 5F">
+    </div>
+    <div class="box">
+      <h3>Da firmare</h3>
+      <div id="todo"></div>
+    </div>
+  </aside>
+  <main class="cal">
+    <div class="grid" id="dh"></div>
+    <div class="grid" id="giorni"></div>
+  </main>
+</div>
+
+<dialog id="dDet"><div id="detBody"></div></dialog>
+
+<dialog id="dForm">
+  <form id="form" class="fl">
+    <h3 id="formTit">Nuovo evento</h3>
+    <div class="row">
+      <div><label for="fTipo">Tipo</label><select id="fTipo"><option value="circolare">Circolare</option><option value="impegno">Impegno</option><option value="riunione">Riunione</option><option value="scadenza">Scadenza</option></select></div>
+      <div><label for="fNum">N° circolare</label><input id="fNum" placeholder="es. 112"></div>
+    </div>
+    <label for="fTit">Titolo *</label><input id="fTit" required maxlength="120">
+    <div class="row">
+      <div><label for="fData">Data *</label><input id="fData" type="date" required></div>
+      <div><label for="fOra">Ora</label><input id="fOra" type="time"></div>
+    </div>
+    <label for="fCl">Classi (separate da virgola, vuoto = tutte)</label><input id="fCl" placeholder="5F, 3A, 4B">
+    <label for="fDesc">Descrizione</label><textarea id="fDesc" rows="3"></textarea>
+    <div class="acts"><button type="button" id="fAnn">Annulla</button><button class="pri" type="submit">Salva</button></div>
+  </form>
+</dialog>
+
+<script src="script.js"></script>
+</body>
+</html>
