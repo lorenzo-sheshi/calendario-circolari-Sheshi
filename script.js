@@ -1,192 +1,101 @@
-const $ = s => document.querySelector(s);
-const COL = {circolare:"#1a73e8", impegno:"#0b8043", riunione:"#e8710a", scadenza:"#d93025"};
-const MESI_G = ["Lun","Mar","Mer","Gio","Ven","Sab","Dom"];
-const store = {
-  get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } },
-  set(k,v){ try { localStorage.setItem(k,v); } catch(e){} }
-};
-const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const key = d => d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
-const fmt = k => new Date(k+"T12:00").toLocaleDateString("it-IT",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
+const $=s=>document.querySelector(s),F=n=>$('#f-'+n),pad=n=>String(n).padStart(2,'0');
+const iso=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const T={circolare:['📄','Circolare'],impegno:['📌','Impegno'],compleanno:['🎂','Compleanno']};
+const load=(k,f)=>{try{return JSON.parse(localStorage.getItem(k))||f}catch{return f}};
+let E=load('circolari-v2',[]),sent=load('circolari-sent',{}),filter='all',view=new Date(),sel=iso(new Date()),cur=null;
+const save=()=>localStorage.setItem('circolari-v2',JSON.stringify(E));
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const on=(e,d)=>e.date===d||(e.type==='compleanno'&&e.date.slice(5)===d.slice(5)&&d>e.date);
+const byDay=d=>E.filter(e=>(filter==='all'||e.type===filter)&&on(e,d)).sort((a,b)=>(a.time||'')<(b.time||'')?-1:1);
+const nextDate=(e,t)=>{if(e.type!=='compleanno')return e.date>=t?e.date:null;const y=+t.slice(0,4);let c=y+e.date.slice(4);if(c<t)c=(y+1)+e.date.slice(4);return c<e.date?e.date:c};
+const longDate=d=>new Date(d+'T12:00').toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long'});
+const toast=m=>{const t=$('#toast');t.textContent=m;t.classList.add('on');setTimeout(()=>t.classList.remove('on'),3500)};
 
-function seed(){
-  return [
-    {id:1,tipo:"circolare",num:"112",titolo:"Collegio docenti unitario",data:"2026-11-12",ora:"15:00",classi:[],desc:"Ordine del giorno: PTOF, progetti, varie ed eventuali.",firme:[]},
-    {id:2,tipo:"riunione",num:"",titolo:"Consiglio di classe 5F",data:"2026-11-10",ora:"14:30",classi:["5F"],desc:"Andamento didattico e disciplinare.",firme:[]},
-    {id:3,tipo:"circolare",num:"115",titolo:"Uscita didattica a Ravenna",data:"2026-11-18",ora:"08:00",classi:["3F","4F"],desc:"Ritrovo davanti alla scuola. Autorizzazioni da consegnare entro il 13/11.",firme:[]},
-    {id:4,tipo:"scadenza",num:"",titolo:"Consegna programmazioni",data:"2026-11-20",ora:"",classi:[],desc:"Caricare le programmazioni individuali sul registro.",firme:[]},
-    {id:5,tipo:"impegno",num:"",titolo:"Colloqui generali",data:"2026-11-24",ora:"15:00",classi:[],desc:"Ricevimento genitori in presenza.",firme:[]},
-    {id:6,tipo:"circolare",num:"120",titolo:"Sciopero generale del 27 novembre",data:"2026-11-27",ora:"",classi:[],desc:"Possibili variazioni dell’orario delle lezioni.",firme:[]}
-  ];
-}
-let eventi;
-try { eventi = JSON.parse(store.get("eventi") || "null"); } catch(e){ eventi = null; }
-if (!Array.isArray(eventi)) eventi = seed();
-const salva = () => store.set("eventi", JSON.stringify(eventi));
-
-let vista = new Date(); vista.setDate(1);
-let docente = store.get("docente") || "";
-$("#docente").value = docente;
-$("#docente").addEventListener("input", e => { docente = e.target.value.trim(); store.set("docente", docente); render(); });
-
-function filtrati(){
-  const q = $("#q").value.toLowerCase(), t = $("#ft").value, c = $("#fc").value.trim().toLowerCase();
-  return eventi.filter(e =>
-    (!t || e.tipo === t) &&
-    (!c || e.classi.some(x => x.toLowerCase() === c) || (!e.classi.length && c === "tutte")) &&
-    (!q || (e.titolo+" "+e.num+" "+e.desc).toLowerCase().includes(q))
-  ).sort((a,b) => (a.data+a.ora).localeCompare(b.data+b.ora));
-}
-const firmato = e => docente && e.firme.some(f => f.nome.toLowerCase() === docente.toLowerCase());
+const item=(e,d)=>{const age=e.type==='compleanno'&&d?` · ${d.slice(0,4)-e.date.slice(0,4)} anni`:'';
+  return `<li class="it ${e.type}" data-id="${e.id}"><span class="em">${T[e.type][0]}</span><div><strong>${esc(e.title)}</strong><small>${d&&d!==sel?longDate(d)+' · ':''}${e.time||'Tutto il giorno'}${age}${e.type==='circolare'?(e.signed?' · ✔ firmata':' · da firmare'):''}</small></div></li>`};
 
 function render(){
-  $("#titolo").textContent = vista.toLocaleDateString("it-IT",{month:"long",year:"numeric"});
-  $("#dh").innerHTML = MESI_G.map(g => `<div class="dh">${g}</div>`).join("");
-  const off = (vista.getDay()+6)%7;
-  const start = new Date(vista.getFullYear(), vista.getMonth(), 1-off);
-  const lista = filtrati(), oggi = key(new Date());
-  let h = "";
-  for (let i=0; i<42; i++){
-    const d = new Date(start.getFullYear(), start.getMonth(), start.getDate()+i), k = key(d);
-    const ev = lista.filter(e => e.data === k);
-    const cls = "day"+(d.getMonth()!==vista.getMonth()?" off":"")+(k===oggi?" today":"");
-    h += `<div class="${cls}" data-d="${k}"><span class="n">${d.getDate()}</span>`;
-    ev.slice(0,3).forEach(e => {
-      h += `<div class="chip ${firmato(e)?"ok":""}" style="background:${COL[e.tipo]}" data-id="${e.id}" title="${esc(e.titolo)}">${firmato(e)?"✓ ":""}${e.ora?esc(e.ora)+" ":""}${esc(e.titolo)}</div>`;
-    });
-    if (ev.length>3) h += `<div class="more">+${ev.length-3} altri</div>`;
-    h += `</div>`;
+  const y=view.getFullYear(),m=view.getMonth(),today=iso(new Date());
+  $('#title').textContent=view.toLocaleDateString('it-IT',{month:'long',year:'numeric'});
+  const first=(new Date(y,m,1).getDay()+6)%7,n=new Date(y,m+1,0).getDate();
+  let h='<span class="cell empty"></span>'.repeat(first);
+  for(let d=1;d<=n;d++){
+    const k=`${y}-${pad(m+1)}-${pad(d)}`,l=byDay(k);
+    h+=`<button class="cell${k===today?' today':''}${k===sel?' sel':''}" data-d="${k}"><b>${d}</b><i>${[...new Set(l.map(e=>e.type))].map(t=>`<u class="${t}"></u>`).join('')}</i>${l.some(e=>e.type==='circolare'&&!e.signed)?'<s></s>':''}</button>`;
   }
-  $("#giorni").innerHTML = h;
-
-  const da = lista.filter(e => e.tipo==="circolare" && !firmato(e));
-  $("#todo").innerHTML = da.length
-    ? da.map(e => `<div class="todo" data-id="${e.id}"><span class="dot" style="background:${COL[e.tipo]}"></span><div><b>${e.num?"N° "+esc(e.num)+" · ":""}${esc(e.titolo)}</b><br><span class="mut">${esc(fmt(e.data))}</span></div></div>`).join("")
-    : `<span class="mut">Nessuna circolare in attesa.</span>`;
+  $('#grid').innerHTML=h;
+  $('#dayh').textContent=longDate(sel);
+  const l=byDay(sel);
+  $('#day').innerHTML=l.length?l.map(e=>item(e)).join(''):'<li class="none">Nessun evento. Tocca “Nuovo” per aggiungerne uno.</li>';
+  const t=iso(new Date());
+  const up=E.filter(e=>filter==='all'||e.type===filter).map(e=>[nextDate(e,t),e]).filter(x=>x[0]).sort((a,b)=>a[0]<b[0]?-1:1).slice(0,6);
+  $('#nextl').innerHTML=up.length?up.map(([d,e])=>item(e,d)).join(''):'<li class="none">Niente in programma.</li>';
 }
 
-$("#giorni").addEventListener("click", ev => {
-  const chip = ev.target.closest(".chip");
-  if (chip) return dettaglio(+chip.dataset.id);
-  const day = ev.target.closest(".day");
-  if (day) apriForm(day.dataset.d);
-});
-$("#todo").addEventListener("click", ev => { const t = ev.target.closest(".todo"); if (t) dettaglio(+t.dataset.id); });
-["q","ft","fc"].forEach(id => $("#"+id).addEventListener("input", render));
-$("#prev").onclick = () => { vista.setMonth(vista.getMonth()-1); render(); };
-$("#next").onclick = () => { vista.setMonth(vista.getMonth()+1); render(); };
-$("#oggi").onclick = () => { vista = new Date(); vista.setDate(1); render(); };
-$("#nuovo").onclick = () => apriForm(key(new Date()));
-$("#tema").onclick = () => {
-  const r = document.documentElement;
-  const dark = r.dataset.theme ? r.dataset.theme==="dark" : matchMedia("(prefers-color-scheme: dark)").matches;
-  r.dataset.theme = dark ? "light" : "dark";
+function openForm(e){
+  ['id','type','title','date','time','notes'].forEach(k=>F(k).value=e?(e[k]||''):k==='type'?'circolare':k==='date'?sel:'');
+  $('#fh').textContent=e?'Modifica evento':'Nuovo evento';$('#dlgF').showModal();
+}
+$('#f').onsubmit=x=>{x.preventDefault();const o={};
+  ['type','title','date','time','notes'].forEach(k=>o[k]=F(k).value.trim());
+  const id=F('id').value;
+  if(id)Object.assign(E.find(e=>e.id===id),o);else E.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),signed:'',...o});
+  save();sel=o.date;view=new Date(o.date+'T12:00');$('#dlgF').close();render();toast('Evento salvato');check();
 };
+function openDet(id){
+  cur=E.find(e=>e.id===id);if(!cur)return;const e=cur;
+  $('#dt').innerHTML=`<p class="tag ${e.type}">${T[e.type][0]} ${T[e.type][1]}</p><h2>${esc(e.title)}</h2><p>${longDate(e.date)}, ${e.date.slice(0,4)}${e.time?' · '+e.time:''}${e.type==='compleanno'?' · ogni anno':''}</p>${e.notes?`<p class="notes">${esc(e.notes)}</p>`:''}${e.signed?`<p class="notes">✔ Firmata il ${new Date(e.signed).toLocaleString('it-IT',{dateStyle:'short',timeStyle:'short'})}</p>`:''}`;
+  $('#sign').hidden=e.type!=='circolare';$('#sign').textContent=e.signed?'↩ Rimuovi la firma':'✍ Firma per presa visione';
+  $('#dlgD').showModal();
+}
+$('#sign').onclick=()=>{cur.signed=cur.signed?'':new Date().toISOString();save();$('#dlgD').close();render();toast(cur.signed?'Circolare firmata':'Firma rimossa')};
+$('#del').onclick=()=>{if(confirm('Eliminare “'+cur.title+'”?')){E=E.filter(e=>e.id!==cur.id);save();$('#dlgD').close();render();toast('Evento eliminato')}};
+$('#edit').onclick=()=>{$('#dlgD').close();openForm(cur)};
 
-function dettaglio(id, conferma){
-  const e = eventi.find(x => x.id===id); if (!e) return;
-  const f = firmato(e);
-  $("#detBody").innerHTML = `
-    <span class="badge" style="background:${COL[e.tipo]}">${e.tipo}${e.num?" n° "+esc(e.num):""}</span>
-    <h3 style="margin-top:8px">${esc(e.titolo)}</h3>
-    <p class="mut">${esc(fmt(e.data))}${e.ora?" · ore "+esc(e.ora):""}<br>Classi: ${e.classi.length?esc(e.classi.join(", ")):"tutte"}</p>
-    <p>${esc(e.desc)||"<span class='mut'>Nessuna descrizione.</span>"}</p>
-    <h4 style="margin:12px 0 4px">Firme di presa visione (${e.firme.length})</h4>
-    ${e.firme.length ? e.firme.map(x => `<div class="sig"><span>${esc(x.nome)}</span><span class="mut">${esc(x.ts)}</span></div>`).join("") : `<span class="mut">Nessuna firma.</span>`}
-    <div class="acts" style="justify-content:flex-start">
-      <button id="bIcs">📲 Aggiungi al calendario</button>
-      <a class="btn" target="_blank" rel="noopener" href="${gcal(e)}">Google Calendar</a>
-    </div>
-    <div class="acts">
-      <button id="bDel" class="danger">${conferma?"Conferma eliminazione":"Elimina"}</button>
-      <button id="bChiudi">Chiudi</button>
-      ${f ? `<button id="bFirma">Togli la mia firma</button>` : `<button id="bFirma" class="pri">Firma presa visione</button>`}
-    </div>`;
-  $("#bChiudi").onclick = () => $("#dDet").close();
-  $("#bIcs").onclick = () => scarica([e], e.titolo);
-  $("#bDel").onclick = () => {
-    if (!conferma) return dettaglio(id, true);
-    eventi = eventi.filter(x => x.id!==id); salva(); $("#dDet").close(); render();
-  };
-  $("#bFirma").onclick = () => {
-    if (!docente){ $("#dDet").close(); $("#docente").focus(); alert("Inserisci prima il tuo nome nel riquadro Docente."); return; }
-    if (f) e.firme = e.firme.filter(x => x.nome.toLowerCase()!==docente.toLowerCase());
-    else e.firme.push({nome:docente, ts:new Date().toLocaleString("it-IT",{dateStyle:"short",timeStyle:"short"})});
-    salva(); render(); dettaglio(id);
-  };
-  if (!$("#dDet").open) $("#dDet").showModal();
-}
+const ymd=s=>s.replace(/-/g,'');
+function span(e){const s=new Date(`${e.date}T${e.time||'12:00'}`),t=new Date(s),f=x=>ymd(iso(x))+(e.time?`T${pad(x.getHours())}${pad(x.getMinutes())}00`:'');
+  e.time?t.setHours(t.getHours()+1):t.setDate(t.getDate()+1);return[f(s),f(t)]}
+const tx=s=>String(s||'').replace(/[,;\\]/g,'\\$&').replace(/\n/g,'\\n');
+$('#ics').onclick=()=>{const e=cur,[a,b]=span(e),al=(t,d)=>`BEGIN:VALARM\r\nACTION:DISPLAY\r\nDESCRIPTION:${d}\r\nTRIGGER:${t}\r\nEND:VALARM`;
+  const al2=e.time?[al('-P1D','Domani'),al('-PT1H','Tra un’ora')]:[al('-PT15H','Domani'),al('PT8H','Oggi')];
+  const txt=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Circolari//IT','BEGIN:VEVENT',`UID:${e.id}@circolari`,'DTSTAMP:'+new Date().toISOString().replace(/[-:]|\.\d+/g,''),
+    e.time?'DTSTART:'+a:'DTSTART;VALUE=DATE:'+a,e.time?'DTEND:'+b:'DTEND;VALUE=DATE:'+b,e.type==='compleanno'?'RRULE:FREQ=YEARLY':'',
+    'SUMMARY:'+tx(T[e.type][0]+' '+e.title),'DESCRIPTION:'+tx(e.notes),...al2,'END:VEVENT','END:VCALENDAR'].filter(Boolean).join('\r\n');
+  dl(txt,'text/calendar','evento.ics');};
+$('#gc').onclick=()=>{const e=cur,[a,b]=span(e),q=encodeURIComponent;
+  open(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${q(e.title)}&dates=${a}/${b}&details=${q(e.notes||'')}${e.type==='compleanno'?'&recur=RRULE:FREQ=YEARLY':''}`,'_blank')};
+function dl(txt,type,name){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([txt],{type:type+';charset=utf-8'}));a.download=name;a.click()}
 
-function apriForm(data){
-  $("#form").reset();
-  $("#fData").value = data;
-  $("#dForm").showModal();
+async function notify(t,b){const o={body:b,icon:'icon-192.png',badge:'icon-192.png'};
+  try{const r=await navigator.serviceWorker.getRegistration();if(r)return r.showNotification(t,o)}catch{}new Notification(t,o)}
+function check(){
+  if(!('Notification' in window)||Notification.permission!=='granted')return;
+  const now=Date.now(),t=iso(new Date());
+  E.forEach(e=>{const d=nextDate(e,t);if(!d)return;const w=new Date(`${d}T${e.time||'08:00'}`).getTime();
+    [[864e5,'Domani'],[36e5,'Tra un’ora']].forEach(([ms,txt])=>{
+      const k=e.id+w+ms;if(now<w-ms||now>=w||sent[k])return;
+      sent[k]=1;
+      if((ms===864e5&&now>=w-36e5)||(ms===36e5&&!e.time))return;
+      notify(`${T[e.type][0]} ${e.title}`,txt+(e.time?' alle '+e.time:''));
+    });});
+  localStorage.setItem('circolari-sent',JSON.stringify(sent));
 }
-$("#fAnn").onclick = () => $("#dForm").close();
-$("#form").addEventListener("submit", ev => {
-  ev.preventDefault();
-  eventi.push({
-    id: Date.now(),
-    tipo: $("#fTipo").value,
-    num: $("#fNum").value.trim(),
-    titolo: $("#fTit").value.trim(),
-    data: $("#fData").value,
-    ora: $("#fOra").value,
-    classi: $("#fCl").value.split(",").map(s => s.trim().toUpperCase()).filter(Boolean),
-    desc: $("#fDesc").value.trim(),
-    firme: []
-  });
-  salva(); $("#dForm").close();
-  const d = new Date($("#fData").value+"T12:00"); vista = new Date(d.getFullYear(), d.getMonth(), 1);
-  render();
-});
+const bell=()=>{$('#bell').textContent='Notification' in window&&Notification.permission==='granted'?'🔔':'🔕'};
+$('#bell').onclick=async()=>{
+  if(!('Notification' in window))return toast('Su iPhone aggiungi prima l’app alla schermata Home da Safari, poi riprova.');
+  const p=await Notification.requestPermission();toast(p==='granted'?'Notifiche attive':'Notifiche non consentite');bell();check()};
 
-const pad = n => String(n).padStart(2,"0");
-function quando(e){
-  const d = e.data.replace(/-/g,"");
-  if (!e.ora){
-    const n = new Date(e.data+"T12:00"); n.setDate(n.getDate()+1);
-    return {all:true, a:d, b:key(n).replace(/-/g,"")};
-  }
-  const fine = new Date(e.data+"T"+e.ora); fine.setHours(fine.getHours()+1);
-  return {all:false, a:d+"T"+e.ora.replace(":","")+"00", b:key(fine).replace(/-/g,"")+"T"+pad(fine.getHours())+pad(fine.getMinutes())+"00"};
-}
-const titoloCal = e => (e.num ? "Circ. "+e.num+" – " : "") + e.titolo;
-const testo = e => [e.num?"Circolare n° "+e.num:"", e.classi.length?"Classi: "+e.classi.join(", "):"", e.desc].filter(Boolean).join("\n");
-const icsEsc = s => String(s).replace(/\\/g,"\\\\").replace(/;/g,"\\;").replace(/,/g,"\\,").replace(/\n/g,"\\n");
-function ics(lista){
-  const r = ["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Belluzzi da Vinci//Circolari//IT","CALSCALE:GREGORIAN"];
-  const stamp = new Date().toISOString().replace(/[-:]/g,"").slice(0,15)+"Z";
-  lista.forEach(e => {
-    const w = quando(e);
-    r.push("BEGIN:VEVENT","UID:"+e.id+"@belluzzi-circolari","DTSTAMP:"+stamp,
-      w.all ? "DTSTART;VALUE=DATE:"+w.a : "DTSTART:"+w.a,
-      w.all ? "DTEND;VALUE=DATE:"+w.b : "DTEND:"+w.b,
-      "SUMMARY:"+icsEsc(titoloCal(e)),
-      "DESCRIPTION:"+icsEsc(testo(e)),
-      "BEGIN:VALARM","ACTION:DISPLAY","DESCRIPTION:Promemoria","TRIGGER:-P1D","END:VALARM",
-      "END:VEVENT");
-  });
-  r.push("END:VCALENDAR");
-  return r.join("\r\n");
-}
-function scarica(lista, nome){
-  const blob = new Blob([ics(lista)], {type:"text/calendar;charset=utf-8"});
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = (nome||"eventi").replace(/[^\w]+/g,"-").slice(0,40)+".ics";
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-}
-function gcal(e){
-  const w = quando(e);
-  return "https://calendar.google.com/calendar/render?action=TEMPLATE&text="+encodeURIComponent(titoloCal(e))+"&dates="+w.a+"/"+w.b+"&details="+encodeURIComponent(testo(e));
-}
-$("#esporta").onclick = () => {
-  const l = filtrati();
-  if (!l.length) return alert("Nessun evento da esportare.");
-  scarica(l, "circolari");
-};
-if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+$('#grid').onclick=e=>{const c=e.target.closest('[data-d]');if(c){sel=c.dataset.d;render()}};
+['#day','#nextl'].forEach(s=>$(s).onclick=e=>{const i=e.target.closest('[data-id]');if(i)openDet(i.dataset.id)});
+$('#chips').onclick=e=>{const b=e.target.closest('[data-f]');if(!b)return;filter=b.dataset.f;document.querySelectorAll('#chips button').forEach(x=>x.classList.toggle('on',x===b));render()};
+$('#prev').onclick=()=>{view=new Date(view.getFullYear(),view.getMonth()-1,1);render()};
+$('#next').onclick=()=>{view=new Date(view.getFullYear(),view.getMonth()+1,1);render()};
+$('#today').onclick=()=>{view=new Date();sel=iso(view);render()};
+$('#add').onclick=()=>openForm();$('#fc').onclick=()=>$('#dlgF').close();$('#dc').onclick=()=>$('#dlgD').close();
+$('#exp').onclick=()=>dl(JSON.stringify(E),'application/json','circolari-backup.json');
+$('#imp').onchange=async e=>{try{const d=JSON.parse(await e.target.files[0].text()),ids=new Set(E.map(x=>x.id));if(!Array.isArray(d))throw 0;
+  d.forEach(x=>{if(x.id&&x.title&&x.date&&!ids.has(x.id))E.push(x)});save();render();toast('Backup ripristinato')}catch{toast('File di backup non valido')}};
 
-render();
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');
+setInterval(check,30000);document.addEventListener('visibilitychange',check);
+bell();render();check();

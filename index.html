@@ -2,74 +2,77 @@
 <html lang="it">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Calendario Circolari – Belluzzi da Vinci</title>
-<link rel="stylesheet" href="style.css">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Circolari · Belluzzi da Vinci</title>
+<meta name="theme-color" content="#2f2a8f">
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#1a73e8">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Circolari">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Circolari">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header>
-  <h1>📅 Belluzzi da Vinci · Circolari</h1>
-  <button id="oggi">Oggi</button>
-  <button id="prev" aria-label="Mese precedente">‹</button>
-  <button id="next" aria-label="Mese successivo">›</button>
-  <h2 id="titolo"></h2>
-  <span class="sp"></span>
-  <button id="esporta" aria-label="Esporta nel calendario del telefono">⬇ .ics</button>
-  <button id="tema" aria-label="Cambia tema">🌓</button>
-  <button class="pri" id="nuovo">+ Nuovo</button>
+<header class="top">
+  <div><h1>Circolari</h1><p>Istituto Belluzzi da Vinci</p></div>
+  <button id="bell" class="bellb" aria-label="Attiva le notifiche">🔔</button>
 </header>
-
-<div class="wrap">
-  <aside>
-    <div class="box">
-      <h3>Docente</h3>
-      <input id="docente" placeholder="Nome e cognome (per firmare)">
+<main class="wrap">
+  <section class="card">
+    <div class="nav">
+      <button id="prev" class="ib" aria-label="Mese precedente">‹</button>
+      <h2 id="title"></h2>
+      <button id="next" class="ib" aria-label="Mese successivo">›</button>
+      <button id="today" class="pill">Oggi</button>
     </div>
-    <div class="box">
-      <h3>Filtri</h3>
-      <label for="q">Cerca</label><input id="q" placeholder="Titolo, numero, testo…">
-      <label for="ft">Tipo</label>
-      <select id="ft"><option value="">Tutti</option><option value="circolare">Circolari</option><option value="impegno">Impegni</option><option value="riunione">Riunioni</option><option value="scadenza">Scadenze</option></select>
-      <label for="fc">Classe</label><input id="fc" placeholder="es. 5F">
+    <div class="chips" id="chips">
+      <button data-f="all" class="on">Tutti</button>
+      <button data-f="circolare">📄 Circolari</button>
+      <button data-f="impegno">📌 Impegni</button>
+      <button data-f="compleanno">🎂 Compleanni</button>
     </div>
-    <div class="box">
-      <h3>Da firmare</h3>
-      <div id="todo"></div>
-    </div>
+    <div class="wk"><span>Lun</span><span>Mar</span><span>Mer</span><span>Gio</span><span>Ven</span><span>Sab</span><span>Dom</span></div>
+    <div class="grid" id="grid"></div>
+  </section>
+  <aside class="side">
+    <section class="card"><h3 id="dayh"></h3><ul id="day" class="list"></ul></section>
+    <section class="card"><h3>Prossimi eventi</h3><ul id="nextl" class="list"></ul></section>
   </aside>
-  <main class="cal">
-    <div class="grid" id="dh"></div>
-    <div class="grid" id="giorni"></div>
-  </main>
-</div>
+</main>
+<footer>
+  <button id="exp" class="link">Salva backup</button>
+  <label class="link">Ripristina backup<input type="file" id="imp" accept=".json" hidden></label>
+</footer>
+<button id="add" class="fab">＋ Nuovo</button>
 
-<dialog id="dDet"><div id="detBody"></div></dialog>
-
-<dialog id="dForm">
-  <form id="form" class="fl">
-    <h3 id="formTit">Nuovo evento</h3>
-    <div class="row">
-      <div><label for="fTipo">Tipo</label><select id="fTipo"><option value="circolare">Circolare</option><option value="impegno">Impegno</option><option value="riunione">Riunione</option><option value="scadenza">Scadenza</option></select></div>
-      <div><label for="fNum">N° circolare</label><input id="fNum" placeholder="es. 112"></div>
+<dialog id="dlgF">
+  <form id="f">
+    <h2 id="fh">Nuovo evento</h2>
+    <input type="hidden" id="f-id">
+    <label>Tipo
+      <select id="f-type"><option value="circolare">📄 Circolare</option><option value="impegno">📌 Impegno</option><option value="compleanno">🎂 Compleanno</option></select>
+    </label>
+    <label>Titolo<input id="f-title" required placeholder="Es. Compleanno di Marco"></label>
+    <div class="two">
+      <label>Data<input type="date" id="f-date" required></label>
+      <label>Ora (facoltativa)<input type="time" id="f-time"></label>
     </div>
-    <label for="fTit">Titolo *</label><input id="fTit" required maxlength="120">
-    <div class="row">
-      <div><label for="fData">Data *</label><input id="fData" type="date" required></div>
-      <div><label for="fOra">Ora</label><input id="fOra" type="time"></div>
-    </div>
-    <label for="fCl">Classi (separate da virgola, vuoto = tutte)</label><input id="fCl" placeholder="5F, 3A, 4B">
-    <label for="fDesc">Descrizione</label><textarea id="fDesc" rows="3"></textarea>
-    <div class="acts"><button type="button" id="fAnn">Annulla</button><button class="pri" type="submit">Salva</button></div>
+    <label>Note<textarea id="f-notes" rows="3"></textarea></label>
+    <div class="btns"><button type="button" class="sec" id="fc">Annulla</button><button class="pri">Salva</button></div>
   </form>
 </dialog>
 
+<dialog id="dlgD">
+  <div id="dt"></div>
+  <div class="btns col">
+    <button class="pri" id="sign"></button>
+    <button class="sec" id="ics">📲 Aggiungi al calendario (.ics)</button>
+    <button class="sec" id="gc">Apri in Google Calendar</button>
+    <div class="row"><button class="sec" id="edit">✏️ Modifica</button><button class="sec danger" id="del">🗑 Elimina</button></div>
+    <button class="link" id="dc">Chiudi</button>
+  </div>
+</dialog>
+<div id="toast" role="status"></div>
 <script src="script.js"></script>
 </body>
 </html>
